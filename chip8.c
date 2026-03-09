@@ -12,6 +12,7 @@ typedef struct chip8{
     uint8_t sp; // An index for the stack
     uint8_t delaytimer;  // Both of these are simple clocks
     uint8_t soundtimer;
+    uint32_t display[64 * 32]; // Display for bits of a 64 x 32 pixel disp
 } chip8;
 
 uint8_t fontset[80] = {
@@ -34,19 +35,26 @@ uint8_t fontset[80] = {
 };
 
 void powerOn(chip8 *cpu){
+    // clears mem
     for(int i = 0; i < 4096; i++){
         cpu->memory[i] = 0;
     }
+    // clears display
+    for(int i = 0; i < 2048; i++) {
+        cpu->display[i] = 0;
+    }
+    // clears both stacks
     for(int i = 0; i < 16; i++){
         cpu->V[i] = 0;
         cpu->stack[i] = 0;
     }
     cpu->I = 0;
+    // mem and intructions usually start at 0x200, hence why we positioned it here
     cpu->pc = 0x200;
     cpu->sp = 0;
     cpu->delaytimer = 0;
     cpu->soundtimer = 0;
-
+    // load fonts into mem starting from 0x50
     for(int i = 0; i < 80; i++){
         cpu->memory[0x50 + i] = fontset[i];
     }
@@ -68,122 +76,92 @@ void loadROM(chip8 *cpu, char *filename){
 }
 
 void cycle(chip8 *cpu){
+    // Out of bounds
     if(cpu->pc > 4094){
         fprintf(stderr, "Program counter out of bounds: 0x%03X\n", cpu->pc);
         return;
     }
+    // FETCH
+    uint16_t opcode = (cpu->memory[cpu->pc] << 8) | cpu->memory[cpu->pc + 1];
 
-    uint16_t opcode = ((uint16_t)cpu->memory[cpu->pc] << 8) | cpu->memory[cpu->pc + 1];
-    uint16_t nnn = opcode & 0x0FFF;
-    uint8_t kk = opcode & 0x00FF;
-    uint8_t n = opcode & 0x000F;
-    uint8_t x = (opcode & 0x0F00) >> 8;
-    uint8_t y = (opcode & 0x00F0) >> 4;
+    // DECODE
+    uint8_t T = (opcode & 0xF000) >> 12;
+    uint8_t X = (opcode & 0x0F00) >> 8;
+    uint8_t Y = (opcode & 0x00F0) >> 4;
+    uint8_t N = (opcode & 0x000F);
+    uint8_t NN = (opcode & 0x00FF);
+    uint16_t NNN = (opcode & 0x0FFF);
 
-    cpu->pc += 2;
+    // EXECUTE
+    switch(T) {
+        case 0x6: // Instruction 6XNN: Set register VX to NN
+            cpu->V[X] = NN;
+            cpu->pc += 2;
+            break;
 
-    switch(opcode & 0xF000){
-        case 0x0000:
-            switch(opcode){
-                case 0x00E0:
-                    break;
-                case 0x00EE:
-                    if(cpu->sp == 0){
-                        fprintf(stderr, "Stack underflow on RET\n");
-                        return;
-                    }
-                    cpu->sp--;
-                    cpu->pc = cpu->stack[cpu->sp];
-                    break;
-                default:
-                    fprintf(stderr, "Unsupported opcode: 0x%04X\n", opcode);
-                    break;
-            }
+        case 0xA: // Instruction ANNN: Set index register I to NNN
+            cpu->I = NNN;
+            cpu->pc += 2;
             break;
-        case 0x1000:
-            cpu->pc = nnn;
+
+        case 0x7:
+            cpu->V[X] += NN;
+            cpu->pc += 2;
             break;
-        case 0x2000:
-            if(cpu->sp >= 16){
-                fprintf(stderr, "Stack overflow on CALL\n");
-                return;
-            }
-            cpu->stack[cpu->sp] = cpu->pc;
-            cpu->sp++;
-            cpu->pc = nnn;
-            break;
-        case 0x3000:
-            if(cpu->V[x] == kk){
+
+        case 0x3:
+            if (cpu->V[X] == NN){
+                cpu->pc += 4;
+            }   else {
                 cpu->pc += 2;
             }
             break;
-        case 0x4000:
-            if(cpu->V[x] != kk){
+
+        case 0x4:
+            if (cpu->V[X] != NN){
+                cpu->pc += 4;
+            } else {
                 cpu->pc += 2;
             }
             break;
-        case 0x5000:
-            if(n == 0 && cpu->V[x] == cpu->V[y]){
-                cpu->pc += 2;
-            }
-            break;
-        case 0x6000:
-            cpu->V[x] = kk;
-            break;
-        case 0x7000:
-            cpu->V[x] += kk;
-            break;
-        case 0x8000:
-            switch(n){
-                case 0x0:
-                    cpu->V[x] = cpu->V[y];
-                    break;
-                case 0x1:
-                    cpu->V[x] |= cpu->V[y];
-                    break;
-                case 0x2:
-                    cpu->V[x] &= cpu->V[y];
-                    break;
-                case 0x3:
-                    cpu->V[x] ^= cpu->V[y];
-                    break;
-                case 0x4: {
-                    uint16_t sum = cpu->V[x] + cpu->V[y];
-                    cpu->V[0xF] = sum > 0xFF;
-                    cpu->V[x] = (uint8_t)sum;
-                    break;
+    
+        case 0x0:
+            if (opcode == 0x00E0){
+                for(int i = 0; i < 2048; i++){
+                    cpu->display[i] = 0;
                 }
-                case 0x5:
-                    cpu->V[0xF] = cpu->V[x] >= cpu->V[y];
-                    cpu->V[x] -= cpu->V[y];
-                    break;
-                default:
-                    fprintf(stderr, "Unsupported opcode: 0x%04X\n", opcode);
-                    break;
             }
             break;
-        case 0x9000:
-            if(n == 0 && cpu->V[x] != cpu->V[y]){
-                cpu->pc += 2;
-            }
-            break;
-        case 0xA000:
-            cpu->I = nnn;
-            break;
-        case 0xB000:
-            cpu->pc = nnn + cpu->V[0];
-            break;
+        
+        
+        
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         default:
-            fprintf(stderr, "Unsupported opcode: 0x%04X\n", opcode);
+            printf("Opcode not implemented yet: %04X\n", opcode);
+            cpu->pc += 2;
             break;
     }
 
-    if(cpu->delaytimer > 0){
-        cpu->delaytimer--;
-    }
-    if(cpu->soundtimer > 0){
-        cpu->soundtimer--;
-    }
 }
 
 
