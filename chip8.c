@@ -178,6 +178,7 @@ void cycle(chip8 *cpu){
                     uint16_t sum = cpu->V[X] + cpu->V[Y];
                     cpu->V[0xF] = (sum > 0xFF) ? 1 : 0;  // Turn on carry flag if sum is greater than 8 bits
                     cpu->V[X] = sum & 0x00FF;
+                    cpu->pc += 2;
                     break;
                 }
                 
@@ -191,14 +192,15 @@ void cycle(chip8 *cpu){
                 
                 case 0x6: { // right shift (divid by 2)
                     uint8_t flag = cpu->V[X] & 0x1; // Extract the right most bit
-                    cpu->V[X] >> 1;
+                    cpu->V[X] >>= 1;
                     cpu->V[0xF] = flag;
+                    cpu->pc += 2;
                     break;
                 }
 
                 case 0x7: { // Subtraction y - x
                     uint8_t flag = (cpu->V[X] >= cpu->V[Y]) ? 0 : 1;
-                    cpu->V[X] = cpu->V[Y] -= cpu->V[X];
+                    cpu->V[X] = cpu->V[Y] - cpu->V[X];
                     cpu->V[0xF] = flag;
                     cpu->pc += 2;
                     break;
@@ -208,17 +210,32 @@ void cycle(chip8 *cpu){
                     uint8_t flag = (cpu->V[X] & 0x0080) >> 7; // catches the left most bit (most signifigiant)
                     cpu->V[X] <<= 1;
                     cpu->V[0xF] = flag;
+                    cpu->pc += 2;
                     break;
                 }
-                
-                
-
-
-
+                break;
             }
+
+        case 0x9: // 9XY0: Skip if V[X] != V[Y]
+            if (cpu->V[X] != cpu->V[Y]) {
+                cpu->pc += 4;
+            } else {
+                cpu->pc += 2;
+            }
+            break;
 
         case 0xA: // Instruction ANNN: Set index register I to NNN
             cpu->I = NNN;
+            cpu->pc += 2;
+            break;
+        
+        case 0xB: // BNNN: Jump to location NNN + V[0]
+            cpu->pc = NNN + cpu->V[0];
+            break;
+        
+        case 0xC: // CXNN: Set V[X] to random byte AND NN
+            // Requires <stdlib.h>, which you already included
+            cpu->V[X] = (rand() % 256) & NN;
             cpu->pc += 2;
             break;
 
