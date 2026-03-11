@@ -206,15 +206,15 @@ void cycle(chip8 *cpu){
                     break;
                 }
 
-                case 0x8: { // shift by left (mult by 2)
+                case 0xE: { // shift by left (mult by 2)
                     uint8_t flag = (cpu->V[X] & 0x0080) >> 7; // catches the left most bit (most signifigiant)
                     cpu->V[X] <<= 1;
                     cpu->V[0xF] = flag;
                     cpu->pc += 2;
                     break;
                 }
-                break;
             }
+            break;
 
         case 0x9: // 9XY0: Skip if V[X] != V[Y]
             if (cpu->V[X] != cpu->V[Y]) {
@@ -238,6 +238,9 @@ void cycle(chip8 *cpu){
             cpu->V[X] = (rand() % 256) & NN;
             cpu->pc += 2;
             break;
+
+        case 0xD:
+            
 
         case 0xF:
             switch(NN) {
