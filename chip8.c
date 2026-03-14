@@ -13,6 +13,7 @@ typedef struct chip8{
     uint8_t delaytimer;  // Both of these are simple clocks
     uint8_t soundtimer;
     uint32_t display[64 * 32]; // Display for bits of a 64 x 32 pixel disp
+    uint8_t keypad[16]; //To register keytrokes on hexdigit keyboard
 } chip8;
 
 uint8_t fontset[80] = {
@@ -47,6 +48,7 @@ void powerOn(chip8 *cpu){
     for(int i = 0; i < 16; i++){
         cpu->V[i] = 0;
         cpu->stack[i] = 0;
+        cpu->keypad[i] = 0;
     }
     cpu->I = 0;
     // mem and intructions usually start at 0x200, hence why we positioned it here
@@ -262,6 +264,23 @@ void cycle(chip8 *cpu){
                 }
             }
         }
+
+        case 0xE:
+            if(NN == 0x9E){
+                if(cpu->keypad[cpu->V[X] != 0]){
+                    cpu->pc += 4;
+                } else {
+                    cpu->pc += 2;
+                }
+            }
+            else if (NN == 0xA1){
+                if (cpu->keypad[cpu->V[X]] == 0){
+                    cpu->pc += 4;
+                } else {
+                    cpu->pc += 2;
+                }
+            }
+            break;
             
 
         case 0xF:
