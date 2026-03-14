@@ -239,7 +239,29 @@ void cycle(chip8 *cpu){
             cpu->pc += 2;
             break;
 
-        case 0xD:
+        case 0xD: // Printing sprites
+        uint8_t x = cpu->V[X] % 64;  // Incase index is greater than screen size
+        uint8_t y = cpu->V[Y] % 32;
+        cpu->V[0xF] = 0;
+        for(int row = 0; row < N; row++){
+            uint8_t sprite_byte = cpu->I + row;
+            for (int col = 0; col < 8; col++){
+                uint8_t sprite_pixel = sprite_byte & (0x80 >> col);
+                if (x + row >= 64){
+                    break;
+                }
+                if (y + col >= 32){
+                    break;
+                }
+                uint32_t screenidx = (x + col) + ((y + col) * 64);
+                if (sprite_pixel != 0){
+                    if (cpu->display[screenidx] = 1){
+                        cpu->V[0xF] = 1;
+                    }
+                    cpu->display[screenidx] ^= 1;
+                }
+            }
+        }
             
 
         case 0xF:
