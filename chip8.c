@@ -285,8 +285,73 @@ void cycle(chip8 *cpu){
 
         case 0xF:
             switch(NN) {
-                case 0x1E:  // Intruction FX
+                case 0x07: // Set V[X] to delay timer value
+                    cpu->V[X] = cpu->delaytimer;
+                    cpu->pc += 2;
+                    break;
+
+                case 0x0A: { // Wait for key press
+                    bool key_pressed = false;
+                    for (int i = 0; i < 16; i++) {
+                        if (cpu->keypad[i] != 0) {
+                            cpu->V[X] = i;
+                            key_pressed = true;
+                            break;
+                        }
+                    }
+                    // If no key is pressed, we return immediately.
+                    // This prevents pc += 2, forcing the CPU to run this exact instruction again next cycle.
+                    if (!key_pressed) {
+                        return; 
+                    }
+                    cpu->pc += 2;
+                    break;
+                }
+
+                case 0x15: // Set delay timer to V[X]
+                    cpu->delaytimer = cpu->V[X];
+                    cpu->pc += 2;
+                    break;
+
+                case 0x18: // Set sound timer to V[X]
+                    cpu->soundtimer = cpu->V[X];
+                    cpu->pc += 2;
+                    break;
+
+                case 0x1E: // Add V[X] to I
                     cpu->I += cpu->V[X];
+                    cpu->pc += 2;
+                    break;
+
+                case 0x29: // Set I to the location of the sprite for character in V[X]
+                    // Fonts are loaded starting at 0x50. Each character is exactly 5 bytes long.
+                    cpu->I = 0x50 + (cpu->V[X] * 5);
+                    cpu->pc += 2;
+                    break;
+
+                case 0x33: // Store Binary-Coded Decimal representation of V[X]
+                    cpu->memory[cpu->I]     = cpu->V[X] / 100;          // Hundreds digit
+                    cpu->memory[cpu->I + 1] = (cpu->V[X] / 10) % 10;    // Tens digit
+                    cpu->memory[cpu->I + 2] = cpu->V[X] % 10;           // Ones digit
+                    cpu->pc += 2;
+                    break;
+
+                case 0x55: // Store registers V[0] through V[X] in memory starting at I
+                    for (int i = 0; i <= X; i++) {
+                        cpu->memory[cpu->I + i] = cpu->V[i];
+                    }
+                    cpu->pc += 2;
+                    break;
+
+                case 0x65: // Read memory starting at I into registers V[0] through V[X]
+                    for (int i = 0; i <= X; i++) {
+                        cpu->V[i] = cpu->memory[cpu->I + i];
+                    }
+                    cpu->pc += 2;
+                    break;
+
+                default:
+                    printf("Unknown F-opcode: %04X\n", opcode);
                     cpu->pc += 2;
                     break;
             }
