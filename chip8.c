@@ -265,7 +265,7 @@ void cycle(chip8 *cpu){
             }
         }
 
-        case 0xE:
+        case 0xE: // Int
             if(NN == 0x9E){
                 if(cpu->keypad[cpu->V[X] != 0]){
                     cpu->pc += 4;
