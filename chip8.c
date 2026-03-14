@@ -64,14 +64,40 @@ void powerOn(chip8 *cpu){
     }
 }
 
-void loadROM(chip8 *cpu, char *filename){
+void loadROM(chip8 *cpu, const char *filename){
     FILE *file;
     file = fopen(filename, "rb");
     if (file == NULL){
         perror("Error opening file");
         return;
     }
-    fread((void *)&cpu->memory[0x200], 1, 3584, file);
+
+    if (fseek(file, 0, SEEK_END) != 0) {
+        perror("Error seeking ROM");
+        fclose(file);
+        return;
+    }
+
+    long rom_size = ftell(file);
+    if (rom_size < 0) {
+        perror("Error reading ROM size");
+        fclose(file);
+        return;
+    }
+
+    if (rom_size > (long)sizeof(cpu->memory) - 0x200) {
+        fprintf(stderr, "ROM too large: %ld bytes\n", rom_size);
+        fclose(file);
+        return;
+    }
+
+    rewind(file);
+    size_t bytes_read = fread((void *)&cpu->memory[0x200], 1, (size_t)rom_size, file);
+    if (bytes_read != (size_t)rom_size) {
+        fprintf(stderr, "Error reading ROM: expected %ld bytes, got %zu\n", rom_size, bytes_read);
+        fclose(file);
+        return;
+    }
 
     for(int i = 0; i < 10; i++) {
         printf("Byte at 0x%03X: %02X\n", 0x200 + i, cpu->memory[0x200 + i]);
@@ -106,6 +132,10 @@ void cycle(chip8 *cpu){
                 cpu->pc += 2;
             }
             else if (opcode == 0x00EE){ // Subroutine anihalator
+                if (cpu->sp == 0) {
+                    fprintf(stderr, "Stack underflow on RET\n");
+                    return;
+                }
                 cpu->sp --;
                 cpu->pc = cpu->stack[cpu->sp];
                 cpu->pc += 2;
@@ -117,6 +147,10 @@ void cycle(chip8 *cpu){
             break;
 
         case 0x2: // Instruction 2NNN: Subroutine call
+            if (cpu->sp >= 16) {
+                fprintf(stderr, "Stack overflow on CALL 0x%03X\n", NNN);
+                return;
+            }
             cpu->stack[cpu->sp] = cpu->pc;
             cpu->sp ++;
             cpu->pc = NNN;
@@ -243,33 +277,40 @@ void cycle(chip8 *cpu){
             cpu->pc += 2;
             break;
 
-        case 0xD: // Printing sprites
-        uint8_t x = cpu->V[X] % 64;  // Incase index is greater than screen size
-        uint8_t y = cpu->V[Y] % 32;
-        cpu->V[0xF] = 0;
-        for(int row = 0; row < N; row++){
-            uint8_t sprite_byte = cpu->I + row;
-            for (int col = 0; col < 8; col++){
-                uint8_t sprite_pixel = sprite_byte & (0x80 >> col);
-                if (x + row >= 64){
+        case 0xD: { // Printing sprites
+            uint8_t x = cpu->V[X] % 64;
+            uint8_t y = cpu->V[Y] % 32;
+            cpu->V[0xF] = 0;
+
+            for (int row = 0; row < N; row++) {
+                uint8_t sprite_byte = cpu->memory[cpu->I + row];
+                if (y + row >= 32) {
                     break;
                 }
-                if (y + col >= 32){
-                    break;
-                }
-                uint32_t screenidx = (x + col) + ((y + col) * 64);
-                if (sprite_pixel != 0){
-                    if (cpu->display[screenidx] = 1){
-                        cpu->V[0xF] = 1;
+
+                for (int col = 0; col < 8; col++) {
+                    if (x + col >= 64) {
+                        break;
                     }
-                    cpu->display[screenidx] ^= 1;
+
+                    uint8_t sprite_pixel = sprite_byte & (0x80 >> col);
+                    if (sprite_pixel != 0) {
+                        uint32_t screenidx = (x + col) + ((y + row) * 64);
+                        if (cpu->display[screenidx] == 1) {
+                            cpu->V[0xF] = 1;
+                        }
+                        cpu->display[screenidx] ^= 1;
+                    }
                 }
             }
+
+            cpu->pc += 2;
+            break;
         }
 
         case 0xE: // Int
             if(NN == 0x9E){
-                if(cpu->keypad[cpu->V[X] != 0]){
+                if(cpu->keypad[cpu->V[X]] != 0){
                     cpu->pc += 4;
                 } else {
                     cpu->pc += 2;
@@ -376,13 +417,34 @@ int main(){
 
     // Create the 98- x 480 window (original 64 x 32 scaled x15)
     SDL_Window* window = SDL_CreateWindow("Chip8 Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 480, SDL_WINDOW_SHOWN);
-    SDL_Renderer*  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Renderer*  renderer = NULL;
+    if (window != NULL) {
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+        if (renderer == NULL) {
+            renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+        }
+    }
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 64, 32);
+
+    if (window == NULL || renderer == NULL || texture == NULL) {
+        fprintf(stderr, "SDL setup failed: %s\n", SDL_GetError());
+        if (texture != NULL) {
+            SDL_DestroyTexture(texture);
+        }
+        if (renderer != NULL) {
+            SDL_DestroyRenderer(renderer);
+        }
+        if (window != NULL) {
+            SDL_DestroyWindow(window);
+        }
+        SDL_Quit();
+        return 1;
+    }
 
     chip8 my_cpu;
     powerOn(&my_cpu);
     loadROM(&my_cpu, "Pong (alt).ch8");
-    uint16_t pixel[2048];
+    uint32_t pixel[2048];
     bool running = true;
     uint32_t last_timer_time = SDL_GetTicks();
 
@@ -392,9 +454,8 @@ int main(){
             if (event.type == SDL_QUIT) {
                 running = false;
             }
-        }
-        // Maps the actual keybinds as events
-        if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+            // Maps the actual keybinds as events
+            if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
                 uint8_t state = (event.type == SDL_KEYDOWN) ? 1 : 0;
                 switch (event.key.keysym.sym) {
                     // Our modern interface does not use the same hexidecimal keypads of back them. We map a custom set of 16 buttons to the hexidecimal keypads our emulator expects
@@ -416,6 +477,7 @@ int main(){
                     case SDLK_v: my_cpu.keypad[0xF] = state; break;
                 }
             }
+        }
         
         cycle(&my_cpu);
 
