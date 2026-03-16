@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/mustafaamin/Chip8_emulator",
-      "program": "/home/mustafaamin/Chip8_emulator/build/Debug/outDebug",
+      "cwd": "/home/mustafaamin/Chip8_emulator/chip8raw",
+      "program": "/home/mustafaamin/Chip8_emulator/chip8raw/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

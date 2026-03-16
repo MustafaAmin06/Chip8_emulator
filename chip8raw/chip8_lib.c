@@ -16,6 +16,12 @@ void lib_reset(){
     loadROM(&cpu, current_rom);
 }
 
+void lib_getmem(uint8_t *out){
+    for (int i = 0; i < 4096; i++){
+        out[i] = cpu.memory[i];
+    }
+}
+
 void lib_step(int cycles){
     for(int i = 0; i < cycles; i++){
         cycle(&cpu);

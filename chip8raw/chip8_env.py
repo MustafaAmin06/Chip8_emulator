@@ -16,7 +16,7 @@ lib.lib_get_display.argtypes = [ctypes.POINTER(ctypes.c_uint8)]
 ACTIONS = [
     [],
     [0x1],
-    [0x2],
+    [0x4],
 ]
 
 class Chip8Pongenv(gym.Env):
@@ -51,6 +51,12 @@ class Chip8Pongenv(gym.Env):
         
         return frame, reward, terminated, truncated, {}
     
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        lib.lib_reset()
+        self.prev_frame = self._get_frame()
+        return self.prev_frame, {}
+    
     def _get_frame(self):
         lib.lib_get_display(self.display_buf)
         return np.array(self.display_buf, dtype=np.uint8).reshape(32, 64)
@@ -58,3 +64,15 @@ class Chip8Pongenv(gym.Env):
     def _get_reward(self, frame):
         # Placeholder — returns 0 for now
         return 0.0
+
+if __name__ == "__main__":
+    env = Chip8Pongenv()
+    obs, _ = env.reset()
+    print("Obs shape:", obs.shape)
+
+    for _ in range(10):
+        action = env.action_space.sample()
+        obs, reward, terminated, truncated, _ = env.step(action)
+
+    print("Stepped 10 times successfully")
+    print("Last frame pixels on:", obs.sum())
