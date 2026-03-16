@@ -46,6 +46,9 @@ void powerOn(chip8 *cpu){
     for(int i = 0; i < 80; i++){
         cpu->memory[0x50 + i] = fontset[i];
     }
+    cpu->bcd_address[0] = 0xFFFF;
+    cpu->bcd_address[1] = 0xFFFF;
+    cpu->bcd_count = 0;
 }
 
 void loadROM(chip8 *cpu, const char *filename){
@@ -326,10 +329,16 @@ void cycle(chip8 *cpu){
                     cpu->pc += 2;
                     break;
 
-                case 0x33: // Store Binary-Coded Decimal representation of V[X]
-                    cpu->memory[cpu->I]     = cpu->V[X] / 100;          // Hundreds digit
-                    cpu->memory[cpu->I + 1] = (cpu->V[X] / 10) % 10;    // Tens digit
-                    cpu->memory[cpu->I + 2] = cpu->V[X] % 10;           // Ones digit
+                case 0x33:
+                    cpu->memory[cpu->I]     = cpu->V[X] / 100;
+                    cpu->memory[cpu->I + 1] = (cpu->V[X] / 10) % 10;
+                    cpu->memory[cpu->I + 2] = cpu->V[X] % 10;
+                    // Record unique BCD addresses
+                    if (cpu->bcd_address[0] == 0xFFFF) {
+                        cpu->bcd_address[0] = cpu->I;
+                    } else if (cpu->I != cpu->bcd_address[0] && cpu->bcd_address[1] == 0xFFFF) {
+                        cpu->bcd_address[1] = cpu->I;
+                    }
                     cpu->pc += 2;
                     break;
 

@@ -15,6 +15,8 @@ typedef struct chip8 {
     uint8_t  soundtimer;
     uint32_t display[64 * 32];
     uint8_t  keypad[16];
+    uint16_t bcd_address[2];
+    uint8_t bcd_count;
 } chip8;
 
 // Core functions

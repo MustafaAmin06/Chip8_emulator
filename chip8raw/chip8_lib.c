@@ -22,15 +22,24 @@ void lib_getmem(uint8_t *out){
     }
 }
 
-void lib_step(int cycles){
-    for(int i = 0; i < cycles; i++){
+void lib_get_registers(uint8_t *out) {
+    for (int i = 0; i < 16; i++) {
+        out[i] = cpu.V[i];
+    }
+}
+
+void lib_get_bcd_addresses(uint16_t *out) {
+    out[0] = cpu.bcd_address[0];
+    out[1] = cpu.bcd_address[1];
+}
+
+void lib_step(int cycles) {
+    for (int i = 0; i < cycles; i++) {
         cycle(&cpu);
-    }
-    if (cpu.soundtimer > 0){
-        cpu.soundtimer --;
-    }
-    if (cpu.delaytimer > 0){
-        cpu.delaytimer --;
+        if (i % 8 == 0) {
+            if (cpu.delaytimer > 0) cpu.delaytimer--;
+            if (cpu.soundtimer > 0) cpu.soundtimer--;
+        }
     }
 }
 
