@@ -65,43 +65,13 @@ void powerOn(chip8 *cpu){
 }
 
 void loadROM(chip8 *cpu, const char *filename){
-    FILE *file;
-    file = fopen(filename, "rb");
+    FILE *file = fopen(filename, "rb");
     if (file == NULL){
         perror("Error opening file");
         return;
     }
 
-    if (fseek(file, 0, SEEK_END) != 0) {
-        perror("Error seeking ROM");
-        fclose(file);
-        return;
-    }
-
-    long rom_size = ftell(file);
-    if (rom_size < 0) {
-        perror("Error reading ROM size");
-        fclose(file);
-        return;
-    }
-
-    if (rom_size > (long)sizeof(cpu->memory) - 0x200) {
-        fprintf(stderr, "ROM too large: %ld bytes\n", rom_size);
-        fclose(file);
-        return;
-    }
-
-    rewind(file);
-    size_t bytes_read = fread((void *)&cpu->memory[0x200], 1, (size_t)rom_size, file);
-    if (bytes_read != (size_t)rom_size) {
-        fprintf(stderr, "Error reading ROM: expected %ld bytes, got %zu\n", rom_size, bytes_read);
-        fclose(file);
-        return;
-    }
-
-    for(int i = 0; i < 10; i++) {
-        printf("Byte at 0x%03X: %02X\n", 0x200 + i, cpu->memory[0x200 + i]);
-    }
+    (void)fread(&cpu->memory[0x200], 1, sizeof(cpu->memory) - 0x200, file);
     fclose(file);
 }
 
