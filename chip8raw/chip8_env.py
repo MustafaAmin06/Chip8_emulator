@@ -23,10 +23,11 @@ ACTIONS = [
 WIN_SCORE = 3  # First to this many points ends the episode
 
 class Chip8Pongenv(gym.Env):
-    def __init__(self, rompath=b"Pong (alt).ch8", cycles_per_step=10):
+    def __init__(self, rompath=b"Pong (alt).ch8", cycles_per_step=10, max_episode_steps=2000):
         super().__init__()
         self.rompath = rompath
         self.cycles_per_step = cycles_per_step
+        self.max_episode_steps = max_episode_steps
         self.display_buf = (ctypes.c_uint8 * 2048)()
         self._reg_buf = (ctypes.c_uint8 * 16)()
         self.observation_space = spaces.Box(
@@ -37,6 +38,7 @@ class Chip8Pongenv(gym.Env):
         self.prev_ve = 0
         self.my_score = 0
         self.opp_score = 0
+        self.episode_steps = 0
         self.prev_frame = self._get_frame()
 
     def step(self, action):
@@ -47,12 +49,14 @@ class Chip8Pongenv(gym.Env):
             lib.lib_set_key(key, 1)
 
         lib.lib_step(self.cycles_per_step)
+        self.episode_steps += 1
 
         frame = self._get_frame()
         reward, terminated = self._get_reward()
+        truncated = self.episode_steps >= self.max_episode_steps
         self.prev_frame = frame
 
-        return frame, reward, terminated, False, {
+        return frame, reward, terminated, truncated, {
             "my_score": self.my_score,
             "opp_score": self.opp_score,
         }
@@ -63,6 +67,7 @@ class Chip8Pongenv(gym.Env):
         self.prev_ve = 0
         self.my_score = 0
         self.opp_score = 0
+        self.episode_steps = 0
         self.prev_frame = self._get_frame()
         return self.prev_frame, {}
 
